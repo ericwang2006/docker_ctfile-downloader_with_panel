@@ -2,9 +2,11 @@
 
 参见 [ctfile-downloader](https://github.com/Nekohy/ctfile-downloader) 项目。
 
-> **2026-11 更新：城通已经停用旧的 `/p2` 客户端接口。**
-> 旧接口现在统一返回 `{"code":410,"message":"请使用新客户端"}`，旧的 p2 token 全部失效。
-> 本仓库已改为调用新的 REST API v1（`https://rest.ctfile.com/v1`），并使用 `session` 认证。
+> **2026-11 更新：城通已停用旧的 `/p2` 客户端接口，开放接口 `/v1` 又仅限 VIP 会员。**
+> 本项目现已全面升级支持**官方最新客户端 `/v4` REST 协议（免会员，普通免费账号可用）**，并保留 `/v1` 会员模式。
+>
+> - **普通免费用户**：启动容器后，访问 `http://<IP>:8787/qr`，使用城通网盘手机 App 扫码一次即可完成授权，系统会自动持久化并在后台静默续期。
+> - **VIP 会员用户**：仍可在 `SESSIONS` 环境变量中填入后台开放接口 session 使用。
 
 # 使用方法
 
@@ -21,8 +23,13 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://192.168.2.27:8787
       PASSWORD: "123456"
-      # 新接口使用 session，多个账号用逗号分隔
-      SESSIONS: "session1,session2,session3"
+      # 免会员模式（默认）：如不想扫码，也可直接在网页端/桌面端复制 refresh_token（多个账号用逗号分隔）
+      # REFRESH_TOKENS: "token1,token2"
+      # 会员模式（可选）：后台生成的 openapi session
+      # SESSIONS: "session1,session2"
+    volumes:
+      # 挂载保存扫码登录凭据，重启容器后无需重新扫码
+      - ./data:/app/ctfile-downloader-node
     restart: unless-stopped
 ```
 
@@ -31,21 +38,29 @@ services:
 ```dotenv
 NEXT_PUBLIC_API_URL=http://localhost:8787
 PASSWORD=123456
-SESSIONS=session1,session2,session3
+# REFRESH_TOKENS=token1,token2
 ```
 
-旧变量名 `TOKENS` 仍然兼容，但里面必须填新的 session，不能再填旧的 p2 token。
+## 账号配置与登录（免会员）
 
-## session 获取方法
+### 推荐：手机 App 扫码登录（一键完成）
+1. 启动服务后，用浏览器打开：<http://localhost:8787/qr>
+2. 打开手机上的「城通网盘 App」，使用扫一扫扫描屏幕上的二维码
+3. 在手机上点击「确认登录」，页面会显示登录成功并自动加入账号池
+4. 支持重复扫码添加多个免费账号，系统自动轮询下载防限速！
 
-旧的 `/p2/user/auth/login` 接口已经失效，无法再用邮箱密码自动换 token。现在需要：
+### 备选：手动复制 Token
+1. 在浏览器登录城通网盘（<https://pan.ctfile.com>）
+2. 按 F12 打开开发者工具 -> Application -> Session Storage，找到 `refresh_token`
+3. 将其填入环境变量 `REFRESH_TOKENS`（多个用逗号分隔）
 
-1. 用浏览器登录城通网盘：<https://www.ctfile.com/>
-2. 进入后台的「开放接口登录密钥管理」页面
-3. 生成或复制你的 session token
-4. 把 session 填入 `SESSIONS` / `TOKENS` 环境变量，多个账号用逗号分隔
+---
 
-每个 session 对应一个下载线程/账号，配置多个可以继续绕过单账号的下载限制。
+## VIP 会员模式（可选）
+
+如拥有城通 VIP 会员：
+1. 登录城通网盘后台进入「开放接口登录密钥管理」
+2. 生成 session 并配置到环境变量 `SESSIONS`，系统将自动使用 v1 开放接口。
 
 ## 构建与运行
 
