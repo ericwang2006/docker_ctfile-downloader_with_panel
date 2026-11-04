@@ -33,21 +33,25 @@ RUN mv /app/ctfile-downloader-panel/out /app/ && \
 	mv /app/out /app/ctfile-downloader-panel
 
 # ========== go-supervisor 构建阶段 ==========
-FROM golang:1.27.3-alpine AS go-builder
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS go-builder
 ARG TARGETOS
 ARG TARGETARCH
-RUN apk add --no-cache git upx
+ARG TARGETVARIANT
+RUN apk add --no-cache git
 WORKDIR /src
 # 固定版本，避免 master 分支的 Go 版本要求变化导致构建失败。
 RUN git clone --depth=1 --branch v0.7.6 https://github.com/ochinchina/supervisord.git .
 
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN GOARM_VAL=""; \
+    if [ "$TARGETARCH" = "arm" ]; then \
+      GOARM_VAL="${TARGETVARIANT#v}"; \
+      [ -z "$GOARM_VAL" ] && GOARM_VAL="7"; \
+    fi; \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${GOARM_VAL} \
     go build -tags release -a \
     -ldflags "-s -w -extldflags '-static'" \
     -trimpath \
     -o /out/supervisord .
-
-RUN upx --best --lzma -o /out/supervisord-compressed /out/supervisord && mv /out/supervisord-compressed /out/supervisord
 
 # ========== http-server 构建阶段 ==========
 FROM alpine:3.9 AS http-builder
