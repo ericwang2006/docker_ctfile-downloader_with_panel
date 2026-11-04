@@ -6,22 +6,21 @@ RUN apk add --no-cache git ca-certificates build-base python3 make
 # 创建工作目录
 WORKDIR /app
 
-# 安装pnpm
-RUN npm install -g pnpm
+# 安装 pnpm（固定 9.x，pnpm 10 默认禁止依赖构建脚本，会导致面板安装 sharp 时失败）
+RUN npm install -g pnpm@9
 
 # 复制脚本
 COPY scripts/ /app/scripts/
 RUN chmod +x /app/scripts/*.sh
 
-# 克隆并构建服务1 - ctfile-downloader
+# 克隆并构建服务1 - ctfile-downloader-node
+# 注意：修复后的源码（REST API v1 + session）需要先 push 到 GitHub。
 RUN git clone --depth=1 https://github.com/ericwang2006/ctfile-downloader-node.git /app/ctfile-downloader-node && \
     cd /app/ctfile-downloader-node && \
-    pnpm install && \
-    pnpm run build && \
-    pnpm prune --production
-
-RUN cd /app/ctfile-downloader-node && \
-    find . -maxdepth 1 ! -name 'dist' ! -name 'node_modules' ! -name 'package.json' ! -name 'pnpm-lock.yaml' ! -name 'tsconfig.json' ! -name '.' -exec rm -rf {} + 2>/dev/null || true
+    npm ci && \
+    npm run build && \
+    npm prune --production && \
+    rm -rf src tsconfig.json README.md .git
 
 # 克隆并构建服务2 - ctfile-downloader-panel
 RUN git clone --depth=1 https://github.com/ericwang2006/ctfile-downloader-panel.git /app/ctfile-downloader-panel && \
@@ -34,12 +33,13 @@ RUN mv /app/ctfile-downloader-panel/out /app/ && \
 	mv /app/out /app/ctfile-downloader-panel
 
 # ========== go-supervisor 构建阶段 ==========
-FROM golang:1.25.3-alpine AS go-builder
+FROM golang:1.27.3-alpine AS go-builder
 ARG TARGETOS
 ARG TARGETARCH
 RUN apk add --no-cache git upx
 WORKDIR /src
-RUN git clone https://github.com/ochinchina/supervisord.git .
+# 固定版本，避免 master 分支的 Go 版本要求变化导致构建失败。
+RUN git clone --depth=1 --branch v0.7.6 https://github.com/ochinchina/supervisord.git .
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -tags release -a \
