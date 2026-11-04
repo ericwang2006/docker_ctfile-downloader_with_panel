@@ -87,8 +87,9 @@ COPY --from=builder /app/ /app/
 COPY supervisord.conf /etc/supervisord.conf
 COPY supervisor/ /etc/supervisor/conf.d/
 
-# 给脚本执行权限
-RUN chmod +x /app/scripts/*.sh
+# 给脚本执行权限与创建数据持久化目录
+RUN chmod +x /app/scripts/*.sh && mkdir -p /app/data
+ENV DATA_DIR=/app/data
 
 # 暴露端口
 EXPOSE 8787 3000

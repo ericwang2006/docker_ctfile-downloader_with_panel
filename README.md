@@ -29,7 +29,7 @@ services:
       # SESSIONS: "session1,session2"
     volumes:
       # 挂载保存扫码登录凭据，重启容器后无需重新扫码
-      - ./data:/app/ctfile-downloader-node
+      - ./data:/app/data
     restart: unless-stopped
 ```
 
