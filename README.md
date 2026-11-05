@@ -43,16 +43,44 @@ PASSWORD=123456
 
 ## 账号配置与登录（免会员）
 
-### 推荐：手机 App 扫码登录（一键完成）
+共有 **4 种** 添加账号的方式，任选其一即可：
+
+### 方式一：手机 App 扫码登录（推荐，最简单）
 1. 启动服务后，用浏览器打开：<http://localhost:8787/qr>
 2. 打开手机上的「城通网盘 App」，使用扫一扫扫描屏幕上的二维码
 3. 在手机上点击「确认登录」，页面会显示登录成功并自动加入账号池
 4. 支持重复扫码添加多个免费账号，系统自动轮询下载防限速！
 
-### 备选：手动复制 Token
+### 方式二：在扫码页手动粘贴 Token
+打开 <http://localhost:8787/qr>，展开「没有 App？点这里粘贴 refresh_token」，
+粘贴 token 并点击「添加账号」，系统会自动验证并加入账号池，**无需重启容器**。
+
+### 方式三：HTTP 接口动态添加（适合脚本 / 自动化）
+```bash
+# token 字段会自动判断是 refresh_token 还是 access_token
+curl -X POST http://localhost:8787/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"token":"你的_refresh_token","username":"备注名"}'
+
+# 也可以显式指定
+curl -X POST http://localhost:8787/auth/token -d 'refresh_token=xxx'
+curl -X POST http://localhost:8787/auth/token -d 'access_token=xxx'
+
+# 查看账号列表
+curl http://localhost:8787/auth/accounts
+
+# 删除账号（按索引或 id）
+curl -X POST http://localhost:8787/auth/accounts/delete -d 'index=0'
+```
+
+### 方式四：环境变量启动时注入
 1. 在浏览器登录城通网盘（<https://pan.ctfile.com>）
-2. 按 F12 打开开发者工具 -> Application -> Session Storage，找到 `refresh_token`
-3. 将其填入环境变量 `REFRESH_TOKENS`（多个用逗号分隔）
+2. 按 F12 → Application → Session Storage，复制 `refresh_token` 的值
+3. 填入环境变量 `REFRESH_TOKENS`（多个用逗号分隔后重启容器）
+
+> 注意：`refresh_token` 在刷新时会被轮换。若使用方式四（环境变量），
+> 系统会把轮换后的新 token 保存到 `/app/data/.tokens.json`，
+> 因此 **务必挂载 `/app/data`**，否则重启后需要重新配置。
 
 ---
 
