@@ -1,5 +1,8 @@
 name: Build and Push Docker Image
 
+# 仅支持在 Actions 页面手动触发（workflow_dispatch），push/tag 不会自动执行。
+# 仅推送 latest 标签。
+#
 # 相当于在本机执行 buildx.sh：
 # docker buildx build -t ericwang2006/ctfile-services --no-cache \
 #   --platform=linux/amd64,linux/arm/v7,linux/arm64/v8 . --push
@@ -9,11 +12,6 @@ name: Build and Push Docker Image
 #   DOCKERHUB_TOKEN     Docker Hub Access Token（不是登录密码）
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -52,12 +50,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
-            type=ref,event=branch
-            type=sha,prefix=sha-
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v6
