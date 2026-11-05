@@ -77,20 +77,37 @@ bash run.sh
 
 # 本次修复内容
 
+## 2026-11：接入官方 v4 客户端协议（免会员）
+调用链（实测可用）：
+1. `POST https://api.ctfile.com/v4/public/browser/list` — 浏览分享列表
+2. `POST https://api.ctfile.com/v4/public/browser/create-download-auth`
+   - 请求：`{ "xtlink": "<xturl...>", "ids": "f1420878136" }`（`ids` 必须带 `f` 前缀）
+   - 返回：`data.download_signature`
+3. （可选）`POST https://api.ctfile.com/v4/file/browse/download-audit` — 上报审计
+4. `POST https://api.ctfile.com/v4/public/browser/fetch-url`
+   - 请求：`{ "file_id": "1420878136", "download_sign": "<sig>", "xtlink": "<xturl...>", "carrier": 0 }`
+   - 返回：`data.download_url`（真实直链，302 跳转给 aria2 即可）
+
+> 注意：换取直链的接口是 **`/v4/public/browser/fetch-url`**，
+> 而不是 `/v4/file/browse/fetch-url-direct`（后者会对分享链接返回 `403 签名验证失败`）。
+
+### ⚠️ 重要：务必持久化 `/app/data`
+`refresh_token` 在刷新时会轮换（服务端 rotate_token），新的 token 会保存到
+`/app/data/.tokens.json`。**如果没有把 `/app/data` 挂载出来，容器重启后轮换后的
+token 会丢失，而环境变量里的初始 token 已失效，导致需要重新扫码。**
+所以请务必加上：`-v ./data:/app/data`。
+
+## 基础修复
 - `ctfile-downloader-node/src/index.ts`
-  - `/p2/browser/file/list` → `/v1/browser/file/list`
-  - `/p2/browser/file/fetch_url` → `/v1/browser/file/fetch_url`
-  - `token` → `session`
-  - 正确处理 v1 的错误码（v1 出错时 HTTP 状态仍为 200，错误在 `code` 字段）
-  - 支持 v1 列表接口的 `start` 分页
-  - 上游返回 401/403/410 时，API 返回明确的 JSON 错误，而不是只抛 `Upstream error: 410`
-  - 修复 `.state.json` 中下标超出 session 数量时取到 `undefined` 的问题
+  - 支持 v4（免会员）与 v1（会员）双模式
+  - 内置 `/qr` 扫码登录页，扫码后自动加入账号池并轮换使用
+  - 自动刷新 access_token，并持久化轮换后的 refresh_token
+  - `PASSWORD` 自动去除首尾空格与引号
+  - 数据目录独立为 `DATA_DIR`（默认 `/app/data`），避免误挂载覆盖代码目录
 - `Dockerfile`
-  - 恢复从 GitHub clone `ctfile-downloader-node`，并使用 `npm ci` 构建（仓库使用 `package-lock.json`）
-  - Go 构建镜像升级到 `golang:1.27.3-alpine`，并固定 `supervisord v0.7.6`（上游 `go.work` 已要求 Go >= 1.27.3）
-  - 固定 `pnpm@9`（pnpm 10 默认禁止依赖构建脚本，会导致面板安装 `sharp` 时失败）
-- 新增 `.dockerignore`
-- `scripts/start-ctfile-downloader.sh`
-  - 兼容旧变量 `TOKENS`（自动当作 `SESSIONS`）
-- `supervisor/*.conf`
-  - 移除 `environment=...%(ENV_...)s` 引用，子进程改为直接继承容器环境变量，避免 go-supervisord 因变量未设置而跳过 program
+  - 使用 `--platform=$BUILDPLATFORM` 交叉编译，修复 `linux/arm/v7` 下 QEMU 导致的
+    `futexwakeup returned -38 SIGSEGV` 崩溃
+  - 移除在 ARM 上不稳定的 UPX 压缩
+  - 固定 `supervisord v0.7.6`、`pnpm@9`
+- `ctfile-downloader-panel`
+  - 前端自动根据当前访问地址推断 API 地址（`<当前host>:8787`），并给出明确的连接错误提示
