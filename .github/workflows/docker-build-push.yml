@@ -5,7 +5,7 @@ name: Build and Push Docker Image
 #
 # 相当于在本机执行 buildx.sh：
 # docker buildx build -t ericwang2006/ctfile-services --no-cache \
-#   --platform=linux/amd64,linux/arm/v7,linux/arm64/v8 . --push
+#   --platform=linux/amd64,linux/arm64/v8,linux/arm/v7,linux/arm/v6,linux/ppc64le,linux/s390x . --push
 #
 # 使用前请在仓库 Settings -> Secrets and variables -> Actions 中添加：
 #   DOCKERHUB_USERNAME  Docker Hub 用户名
@@ -57,7 +57,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
+          platforms: linux/amd64,linux/arm64/v8,linux/arm/v7,linux/arm/v6,linux/ppc64le,linux/s390x
           push: true
           no-cache: true
           tags: ${{ steps.meta.outputs.tags }}

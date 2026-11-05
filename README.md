@@ -133,8 +133,9 @@ token 会丢失，而环境变量里的初始 token 已失效，导致需要重�
   - `PASSWORD` 自动去除首尾空格与引号
   - 数据目录独立为 `DATA_DIR`（默认 `/app/data`），避免误挂载覆盖代码目录
 - `Dockerfile`
-  - 使用 `--platform=$BUILDPLATFORM` 交叉编译，修复 `linux/arm/v7` 下 QEMU 导致的
-    `futexwakeup returned -38 SIGSEGV` 崩溃
+  - 前端/Node 构建阶段使用 `--platform=$BUILDPLATFORM`，在构建机架构上完成与 CPU 无关的构建，
+    避免 ARM/ppc64le/s390x 下 QEMU 运行 Next.js SWC 时崩溃，并显著提速
+  - Go supervisor 使用 `--platform=$BUILDPLATFORM` 交叉编译
   - 移除在 ARM 上不稳定的 UPX 压缩
   - 固定 `supervisord v0.7.6`、`pnpm@9`
 - `ctfile-downloader-panel`

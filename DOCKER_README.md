@@ -167,6 +167,27 @@ docker build -t ctfile-services .
 bash run.sh
 ```
 
+### 支持架构
+
+Docker Hub 镜像为多架构 manifest，支持：
+
+| 平台 | 说明 |
+| --- | --- |
+| `linux/amd64` | x86_64 |
+| `linux/arm64/v8` | ARM64 / Apple Silicon / 树莓派 4+ |
+| `linux/arm/v7` | 32 位 ARM（树莓派 2/3 等） |
+| `linux/arm/v6` | 早期 32 位 ARM（树莓派 1 / Zero） |
+| `linux/ppc64le` | IBM POWER（小端） |
+| `linux/s390x` | IBM Z / LinuxONE |
+
+Docker 会自动选择与宿主机匹配的架构；也可显式指定：
+
+```bash
+docker pull --platform linux/arm64/v8 ericwang2006/ctfile-services:latest
+```
+
+> 受官方 `node:20.19.5-alpine` 基础镜像限制，暂不支持 `linux/386`、`linux/riscv64` 等架构。
+
 `Dockerfile` 会从 GitHub clone 以下两个仓库，因此修改代码后需先 push：
 
 - `ericwang2006/ctfile-downloader-node`

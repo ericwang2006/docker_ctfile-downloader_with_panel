@@ -1,5 +1,7 @@
 # ========== 第一阶段：构建阶段 ==========
-FROM node:20.19.5-alpine AS builder
+# 前端/Node 构建产物与 CPU 架构无关，统一在构建机架构上执行，
+# 避免在 QEMU 下运行 Next.js SWC（ppc64le/s390x 会崩溃）并大幅提速。
+FROM --platform=$BUILDPLATFORM node:20.19.5-alpine AS builder
 # 安装编译依赖
 RUN apk add --no-cache git ca-certificates build-base python3 make
 
