@@ -1,7 +1,13 @@
+# 运行阶段使用的 Node 基础镜像，由 CI 按目标架构传入：
+#   amd64 / arm64 / s390x : node:24.22.2-alpine (Node 24 LTS)
+#   arm/v6 / arm/v7       : node:22.23.4-alpine (Node 22 LTS，Node 24 已不提供 32 位 ARM)
+#   ppc64le               : node:24.22.2-bookworm-slim (Node 24 LTS，官方无 Alpine ppc64le)
+ARG NODE_IMAGE=node:24.22.2-alpine
+
 # ========== 第一阶段：构建阶段 ==========
 # 前端/Node 构建产物与 CPU 架构无关，统一在构建机架构上执行，
 # 避免在 QEMU 下运行 Next.js SWC（ppc64le/s390x 会崩溃）并大幅提速。
-FROM --platform=$BUILDPLATFORM node:20.19.5-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:24.22.2-alpine AS builder
 # 安装编译依赖
 RUN apk add --no-cache git ca-certificates build-base python3 make
 
@@ -61,16 +67,23 @@ FROM alpine:3.9 AS http-builder
 RUN apk add build-base
 
 # https://sourceforge.net/projects/shttpd/files/shttpd/1.42/
+# 静态链接，确保 Alpine(musl) 构建出的二进制也能放进 ppc64le 的 Debian(glibc) 运行阶段。
 RUN wget -O ./shttpd-1.42.tar.gz https://github.com/ericwang2006/shttpd/archive/refs/tags/v1.42.tar.gz && \
    tar -zxvf ./shttpd-1.42.tar.gz && \
    cd shttpd-1.42/src && \
-   LIBS="-lpthread -ldl " make unix
+   CFLAGS="-O2 -static" LIBS="-lpthread -ldl " make unix
 
 # ========== 第三阶段：运行阶段 ==========
-FROM node:20.19.5-alpine
+FROM ${NODE_IMAGE}
 
-# 安装依赖
-RUN apk add --no-cache ca-certificates
+# 安装依赖（Alpine 用 apk，ppc64le 的 Debian 用 apt）
+RUN if command -v apk >/dev/null 2>&1; then \
+      apk add --no-cache ca-certificates; \
+    elif command -v apt-get >/dev/null 2>&1; then \
+      apt-get update && \
+      apt-get install -y --no-install-recommends ca-certificates && \
+      rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # 从 go-builder 阶段复制 go-supervisor 二进制文件
 COPY --from=go-builder /out/supervisord /usr/bin/supervisord

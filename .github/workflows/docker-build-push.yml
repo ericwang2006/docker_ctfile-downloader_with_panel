@@ -3,9 +3,12 @@ name: Build and Push Docker Image
 # 仅支持在 Actions 页面手动触发（workflow_dispatch），push/tag 不会自动执行。
 # 仅推送 latest 标签。
 #
-# 相当于在本机执行 buildx.sh：
-# docker buildx build -t ericwang2006/ctfile-services --no-cache \
-#   --platform=linux/amd64,linux/arm64/v8,linux/arm/v7,linux/arm/v6,linux/ppc64le,linux/s390x . --push
+# 各架构使用不同的 Node 基础镜像（官方镜像的架构支持不一致）：
+#   amd64 / arm64 / s390x : node:24.22.2-alpine (Node 24 LTS)
+#   arm/v6 / arm/v7       : node:22.23.4-alpine (Node 22 LTS，Node 24 无 32 位 ARM)
+#   ppc64le               : node:24.22.2-bookworm-slim (Node 24 LTS，官方无 Alpine ppc64le)
+#
+# 本地等价命令：./buildx.sh（需要先 docker login，并支持 QEMU 多架构构建）
 #
 # 使用前请在仓库 Settings -> Secrets and variables -> Actions 中添加：
 #   DOCKERHUB_USERNAME  Docker Hub 用户名
@@ -25,8 +28,32 @@ env:
   IMAGE_NAME: ericwang2006/ctfile-services
 
 jobs:
-  build-and-push:
+  build:
+    name: Build ${{ matrix.platform }}
     runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: amd64
+            platform: linux/amd64
+            node_image: node:24.22.2-alpine
+          - name: arm64
+            platform: linux/arm64/v8
+            node_image: node:24.22.2-alpine
+          - name: armv7
+            platform: linux/arm/v7
+            node_image: node:22.23.4-alpine
+          - name: armv6
+            platform: linux/arm/v6
+            node_image: node:22.23.4-alpine
+          - name: ppc64le
+            platform: linux/ppc64le
+            node_image: node:24.22.2-bookworm-slim
+          - name: s390x
+            platform: linux/s390x
+            node_image: node:24.22.2-alpine
 
     steps:
       - name: Checkout
@@ -52,13 +79,58 @@ jobs:
           tags: |
             type=raw,value=latest
 
-      - name: Build and push
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64/v8,linux/arm/v7,linux/arm/v6,linux/ppc64le,linux/s390x
-          push: true
-          no-cache: true
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            NODE_IMAGE=${{ matrix.node_image }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          provenance: false
+          no-cache: true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.name }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Publish multi-arch latest
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create multi-arch latest tag
+        run: |
+          cd /tmp/digests
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:latest" \
+            $(printf "${IMAGE_NAME}@sha256:%s " *)

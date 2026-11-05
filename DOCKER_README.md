@@ -171,14 +171,17 @@ bash run.sh
 
 Docker Hub 镜像为多架构 manifest，支持：
 
-| 平台 | 说明 |
-| --- | --- |
-| `linux/amd64` | x86_64 |
-| `linux/arm64/v8` | ARM64 / Apple Silicon / 树莓派 4+ |
-| `linux/arm/v7` | 32 位 ARM（树莓派 2/3 等） |
-| `linux/arm/v6` | 早期 32 位 ARM（树莓派 1 / Zero） |
-| `linux/ppc64le` | IBM POWER（小端） |
-| `linux/s390x` | IBM Z / LinuxONE |
+| 平台 | Node 版本 | 说明 |
+| --- | --- | --- |
+| `linux/amd64` | 24 LTS | x86_64 |
+| `linux/arm64/v8` | 24 LTS | ARM64 / Apple Silicon / 树莓派 4+ |
+| `linux/arm/v7` | 22 LTS | 32 位 ARM（树莓派 2/3 等） |
+| `linux/arm/v6` | 22 LTS | 早期 32 位 ARM（树莓派 1 / Zero） |
+| `linux/ppc64le` | 24 LTS | IBM POWER（小端，Debian 基础镜像） |
+| `linux/s390x` | 24 LTS | IBM Z / LinuxONE |
+
+> Node 24 官方镜像已不再提供 32 位 ARM，因此 `arm/v6`、`arm/v7` 使用仍受支持的
+> Node 22 LTS；官方也没有 Alpine 版 ppc64le，因此该架构使用 Debian 版 Node 24。
 
 Docker 会自动选择与宿主机匹配的架构；也可显式指定：
 
@@ -186,7 +189,7 @@ Docker 会自动选择与宿主机匹配的架构；也可显式指定：
 docker pull --platform linux/arm64/v8 ericwang2006/ctfile-services:latest
 ```
 
-> 受官方 `node:20.19.5-alpine` 基础镜像限制，暂不支持 `linux/386`、`linux/riscv64` 等架构。
+> 受官方 Node 镜像架构限制，暂不支持 `linux/386`、`linux/riscv64` 等架构。
 
 `Dockerfile` 会从 GitHub clone 以下两个仓库，因此修改代码后需先 push：
 

@@ -133,9 +133,12 @@ token 会丢失，而环境变量里的初始 token 已失效，导致需要重�
   - `PASSWORD` 自动去除首尾空格与引号
   - 数据目录独立为 `DATA_DIR`（默认 `/app/data`），避免误挂载覆盖代码目录
 - `Dockerfile`
+  - 运行阶段升级到 Node 24 LTS；由于 Node 24 不再提供 32 位 ARM 镜像，`arm/v6`、`arm/v7`
+    使用 Node 22 LTS，`ppc64le` 使用 Debian 版 Node 24
   - 前端/Node 构建阶段使用 `--platform=$BUILDPLATFORM`，在构建机架构上完成与 CPU 无关的构建，
     避免 ARM/ppc64le/s390x 下 QEMU 运行 Next.js SWC 时崩溃，并显著提速
   - Go supervisor 使用 `--platform=$BUILDPLATFORM` 交叉编译
+  - `shttpd` 改为静态链接，兼容 Alpine 和 ppc64le 的 Debian 运行阶段
   - 移除在 ARM 上不稳定的 UPX 压缩
   - 固定 `supervisord v0.7.6`、`pnpm@9`
 - `ctfile-downloader-panel`
